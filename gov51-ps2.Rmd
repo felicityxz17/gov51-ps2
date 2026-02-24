@@ -1,0 +1,10 @@
+# 1 Part 1: The Original Study
+## 1.1
+### 1.1.1
+
+```{r}
+library(tidyverse)
+gay <- read_csv("data/raw/gay.csv")
+```
+
+Q1.1: 
