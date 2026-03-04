@@ -1,10 +1,223 @@
-# 1 Part 1: The Original Study
-## 1.1
-### 1.1.1
+Felicity Zhang
+https://github.com/felicityxz17/gov51-ps2
+
+# Part 1: The Original Study
+## 1.1 Exploring the Experiment
 
 ```{r}
 library(tidyverse)
 gay <- read_csv("data/raw/gay.csv")
 ```
 
-Q1.1: 
+### Q1.1
+```{r}
+dim(gay)
+table(gay$study)
+table(gay$treatment)
+```
+The dataset contains 69,592 total observations, and the variable `study` takes on 2 unique values, `1` and `2`. 
+
+There are 5 treatment conditions:
+
+1. No Contact
+2. Recycling Script by Gay Canvasser
+3. Recycling Script by Straight Canvasser
+4. Same-Sex Marriage Script by Gay Canvasser
+5. Same-Sex Marriage Script by Straight Canvasser
+
+### Q1.2
+```{r}
+gay11 <- gay[(gay$study == 1) & (gay$wave == 1),]
+summarize(group_by(gay11, treatment), mean(ssm))
+```
+The Recycling Script by Gay Canvasser treatment shows the highest average support, with a mean `ssm` of 3.130975.
+
+### Q1.3
+```{r}
+summarize(group_by(gay11, treatment), sd(ssm))
+```
+The standard deviations are roughly similar across all treatment groups, around 1.68. Similar standard deviations are important in a randomized experiment because they indicate similar variation and shape of the sampling distribution across treatment groups. No treatment group had abnormally varied effects that might suggest that variables other than the treatment might be confounding the relationship and causing additional variation. 
+
+### Q1.4
+```{r}
+ggplot(summarize(group_by(gay11, treatment), mean_ssm = mean(ssm)), aes(x = mean_ssm, y = treatment)) +
+  geom_col(stat = "identity", color = "black", fill = "white") +
+  labs(title = "Baseline Attitudes Toward Same-Sex Marriage",
+       x = "Mean Feeling Thermometer for Same-Sex Marriage",
+       y = "Treatment Group")
+```
+## 1.2 Checking Balance and Comparing Outcomes
+
+### Q1.5
+From Q1.2 and Q1.3, we have: 
+```{r}
+gay11_mean4 <- mean(gay11$ssm[gay11$treatment == "Same-Sex Marriage Script by Gay Canvasser"])
+gay11_sd4 <- sd(gay11$ssm[gay11$treatment == "Same-Sex Marriage Script by Gay Canvasser"])
+gay11_mean1 <- mean(gay11$ssm[gay11$treatment == "No Contact"])
+gay11_sd1 <- sd(gay11$ssm[gay11$treatment == "No Contact"])
+
+(gay11_mean4 - gay11_mean1)/sqrt(((gay11_sd4)^2+(gay11_sd1)^2)/2)
+```
+Yes, these groups look similar at baseline. Their standardized difference, -0.01049935, is below 0.25 in absolute value.
+
+### Q1.6
+```{r}
+gay12 <- gay[(gay$study == 1) & (gay$wave == 2),]
+gay12_mean4 <- mean(gay12$ssm[gay12$treatment == "Same-Sex Marriage Script by Gay Canvasser"])
+gay12_mean1 <- mean(gay12$ssm[gay12$treatment == "No Contact"])
+
+gay12_mean4-gay12_mean1
+```
+The difference in means is positive 0.09987463. Since the groups were balanced at baseline, this difference at Wave 2 suggests that the treatment has had some effect in improving the treatment group's attitudes toward same-sex marriage compared to the control group. 
+
+# Part 2: The Forensic Discovery
+## 2.1 The Baseline Distribution
+
+### Q2.1
+```{r}
+gay_r <- read_csv("data/raw/gayreshaped.csv")
+ccap <- read_csv("data/raw/ccap2012.csv")
+
+dim(gay_r)
+dim(ccap)
+
+colnames(gay_r)
+colnames(ccap)
+```
+The dataset `gay_r` has 11948 observations for 6 columns `study`, `treatment`, `therm1`, `therm2`, `therm3`, and `therm4`. 
+
+The dataset `ccap` has 43998 observatinos for 3 columns `caseid`, `gaytherm`, and a blank column for the observation number. 
+
+### Q2.2
+```{r}
+study1_therm1 <- c(gay_r[gay_r$study == 1,]$therm1)
+
+mean(study1_therm1)
+median(study1_therm1)
+sd(study1_therm1)
+
+ccap_gaytherm <- c(ccap$gaytherm)
+
+mean(ccap_gaytherm, na.rm = TRUE)
+median(ccap_gaytherm, na.rm = TRUE)
+sd(ccap_gaytherm, na.rm = TRUE)
+```
+For `gay_r` and `ccap`, respectively, the feeling thermometer statistics are:
+
+Means: 58.37625, 58.70517
+Medians: 52, 54
+Standard deviations: 28.50288, 29.36892
+
+All 3 statistics are strikingly similar. The means differ by less than 0.4, the medians differ by 2, and the standard deviations differ by less than 1. This level of similarity suggests that there might be some overlap in the data itself. 
+
+### Q2.3
+```{r}
+study1_baselinetherm <- gay_r[gay_r$study == 1,] %>%
+  rename(therm = therm1) %>%
+  mutate(source = "LaCour")
+  
+ccap_therm <- ccap %>%
+  rename(therm = gaytherm) %>%
+  mutate(ccap_gaytherm, source = "CCAP")
+
+lacour_ccap <- bind_rows(study1_baselinetherm, ccap_therm)
+
+ggplot(lacour_ccap, aes(x = therm)) + 
+  geom_histogram(breaks = seq(0, 100, by = 5), color = "black", fill = "white") +
+  facet_wrap(~source) +
+  labs(title = "CCAP and LaCour Study 1 Baseline Therms",
+       x = "Feeling Thermometer for Same-Sex Marriage (0-100)",
+       y = "Count")
+```
+The two datasets do not appear to have come from different populations. The shape of the distribution is almost exactly mirrored in LaCour's data, with the main difference being the sample size. There are noticeable peaks at 0, 50, and 100 in both datasets, which is to be expected due to heaping, but the distribution in between those values is also highly similar in terms of shape and relative proportions. 
+
+## 2.2 Re-test Reliability
+### Q2.4
+```{r}
+study1_control <- gay_r[(gay_r$treatment == "No Contact") & (gay_r$study == 1),]
+cor(study1_control$therm1, study1_control$therm2, use = "complete.obs")
+sd(study1_control$therm2 - study1_control$therm1, na.rm = TRUE)
+
+study2_control <- gay_r[(gay_r$treatment == "No Contact") & (gay_r$study == 2),]
+cor(study2_control$therm1, study2_control$therm2, use = "complete.obs")
+sd(study2_control$therm2 - study2_control$therm1, na.rm = TRUE)
+```
+Study 2 shows a more plausible pattern with a correlation of 0.9734449 in the re-test data and a standard deviation of 6.605738, matching a reasonable re-test correlation in the range of 0.95-0.97 and substantial variability. On the other hand, Study 1 has a suspiciously high correlation of 0.9975817 and a low standard deviation of 1.987678, making it unlikely to have drawn from data with real people who change their minds. Thus, Study 2 more accurately reflects real-world changes in individuals' feelings between re-testing. 
+
+### Q2.5
+```{r}
+plot(therm2 ~ therm1, data = study1_control)
+abline(a = 0, b = 1, col = "red")
+plot(therm2 ~ therm1, data = study2_control)
+abline(a = 0, b = 1, col = "red")
+```
+Study 2 looks more like real longitudinal data than Study 1. The data for Study 1 lies exactly on the 45-degree line except for around 0, 50, and 100, which suggests an unrealistic assumption that the majority of people's feeling thermometers are entirely constant between the two tests. On the other hand, the data for Study 2 is scattered around the line and demonstrates more realistic variability in the two thermometer measurements for each individual. Additionally, the data for Study 2 demonstrates more realistic distributions of data points around 0, 50, and 100, while the data for Study 1 shows only horizontal distributions at these points, suggesting that the data might have artificially attempted to create variation at these values.
+
+## 2.3 Putting It All Together
+### Q2.6
+The findings suggest that the data was fabricated rather than collected because they match the properties of computer-generated data. Specifically, the similar baseline distributions between the study data and CCAP data, including the observation that their means are only 0.4 apart and standard deviations are less than 1 apart, suggest that a computer may have drawn on the CCAP data for the baseline. For the second wave, the computer seems to have replicated the baseline data with some slight modifications given the extremely high re-test correlation of 0.9975817 and the scatterplot displaying near-identical measurements between the two thermometers. Also, the standard deviation of 1.987678 in the within-person changes in thermometers resembles the 95% interval for a normal distribution of 1.96 standard deviations, suggesting that a computer artificially adjusted the data to resemble a normal distribution, which matches the horizontally adjusted values at `therm1` values of 0, 50, and 100 in the scatterplot.
+
+# 3 Part 3: What Real Data Looks Like
+## 3.1 Comparing Baselines
+### Q3.1
+```{r}
+study2 = gay_r[gay_r$study == 2,]
+dim(study2)
+
+mean(study2[study2$treatment == "No Contact",]$therm1)
+sd(study2[study2$treatment == "No Contact",]$therm1)
+mean(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm1)
+sd(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm1)
+```
+Study 2 contains 2441 observations. The mean and SD of `therm1` for the control group are 57.88612 and 28.69655, respectively. The mean and SD of `therm1` for the treatment group are 59.35057 and 28.41578, respectively.
+
+### Q3.2
+```{r}
+study1_baselinetherm <- gay_r[gay_r$study == 1,] %>%
+  rename(therm = therm1) %>%
+  mutate(source = "Study 1")
+study2_baselinetherm <- gay_r[gay_r$study == 2,] %>%
+  rename(therm = therm1) %>%
+  mutate(source = "Study 2")
+
+study1_study2 <- bind_rows(study1_baselinetherm, study2_baselinetherm)
+
+ggplot(study1_study2, aes(x = therm)) + 
+  geom_histogram(breaks = seq(0, 100, by = 5), color = "black", fill = "white") +
+  facet_wrap(~source) +
+  labs(title = "Study 1 and Study 2 Baseline Therms",
+       x = "Feeling Thermometer for Same-Sex Marriage (0-100)",
+       y = "Count")
+```
+The two datasets still appear to have come from similar populations, since the shapes of the distributions are still extremely similar. As before, both datasets still have modes around 50, 0, and 100. 
+
+## 3.2 Checking Balance and Comparing Outcomes in Study 2
+### Q3.3
+From Q3.1, we have: 
+```{r}
+controlbaseline_mean <- mean(study2[study2$treatment == "No Contact",]$therm1)
+controlbaseline_sd <- sd(study2[study2$treatment == "No Contact",]$therm1)
+treatmentbaseline_mean <- mean(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm1)
+treatmentbaseline_sd <- sd(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm1)
+
+(treatmentbaseline_mean - controlbaseline_mean)/sqrt(((treatmentbaseline_sd)^2+(controlbaseline_sd)^2)/2)
+```
+Yes, these groups look similar at baseline. Their standardized difference, 0.05128243, is below 0.25 in absolute value.
+
+### Q3.4
+```{r}
+controlpost_mean <- mean(study2[study2$treatment == "No Contact",]$therm2, na.rm = TRUE)
+treatmentpost_mean <- mean(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm2, na.rm = TRUE)
+
+controlpost_mean
+treatmentpost_mean
+treatmentpost_mean - controlpost_mean
+```
+The difference in means is positive 3.567885. Since the groups were balanced at baseline, this difference suggests that the treatment has had an effect in improving the treatment group's attitudes toward same-sex marriage compared to the control group. 
+
+## 3.3 Uncertainty Around the Difference
+```{r}
+controlpost_obs <- length(study2[study2$treatment == "No Contact",]$therm2) - sum(is.na(study2[study2$treatment == "No Contact",]$therm2))
+treatmentpost_obs <- length(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm2) - sum(is.na(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm2))
+```
+
