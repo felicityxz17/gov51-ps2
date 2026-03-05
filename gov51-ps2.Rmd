@@ -118,7 +118,7 @@ study1_baselinetherm <- gay_r[gay_r$study == 1,] %>%
   
 ccap_therm <- ccap %>%
   rename(therm = gaytherm) %>%
-  mutate(ccap_gaytherm, source = "CCAP")
+  mutate(source = "CCAP")
 
 lacour_ccap <- bind_rows(study1_baselinetherm, ccap_therm)
 
@@ -216,8 +216,93 @@ treatmentpost_mean - controlpost_mean
 The difference in means is positive 3.567885. Since the groups were balanced at baseline, this difference suggests that the treatment has had an effect in improving the treatment group's attitudes toward same-sex marriage compared to the control group. 
 
 ## 3.3 Uncertainty Around the Difference
+### Q3.5
 ```{r}
+controlpost_sd <- sd(study2[study2$treatment == "No Contact",]$therm2, na.rm = TRUE)
+treatmentpost_sd <- sd(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm2, na.rm = TRUE)
+
 controlpost_obs <- length(study2[study2$treatment == "No Contact",]$therm2) - sum(is.na(study2[study2$treatment == "No Contact",]$therm2))
 treatmentpost_obs <- length(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm2) - sum(is.na(study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser",]$therm2))
+
+SEpost <- sqrt((treatmentpost_sd)^2/treatmentpost_obs + (controlpost_sd)^2/controlpost_obs)
+
+SEpost
+
+(treatmentpost_mean - controlpost_mean) - 1.96*SEpost
+(treatmentpost_mean - controlpost_mean) + 1.96*SEpost
 ```
 
+The standard error is 1.242138, and the 95% confidence interval is (1.133294, 6.002475). The confidence interval does not include 0, which suggests that we can reject the null hypothesis and conclude there is a statistically significant positive difference between the treatment group and control group post-conversation. 
+
+## 3.4 Tracking Attitudes Over Time
+### Q3.6
+```{r}
+cor(study2[study2$treatment == "No Contact",]$therm1, study2[study2$treatment == "No Contact",]$therm2, use = "complete.obs")
+cor(study2[study2$treatment == "No Contact",]$therm1, study2[study2$treatment == "No Contact",]$therm3, use = "complete.obs")
+cor(study2[study2$treatment == "No Contact",]$therm1, study2[study2$treatment == "No Contact",]$therm4, use = "complete.obs")
+```
+
+The correlations do not necessarily steadily decay over time but do fluctuate, suggesting that real survey display variation from shifts in feeling thermometers between measurements and are not completely stable. 
+
+### Q3.7
+Although both studies had similar baseline distributions, Study 2 has lower correlations between waves, with a maximum between-thermometer correlation of 0.9734449 compared to the between-thermometer correlation of 0.9975817 for Study 1, suggesting that Study 2 more accurately captures the variation and instability in real survey measurements. 
+
+# Part 4: Formalizing the Evidence with Regression
+## 4.1 Regression as a Fraud Detector
+### Q4.1
+```{r}
+fit_s1 <- lm(therm2 ~ therm1, data = gay_r[(gay_r$study == 1) & (gay_r$treatment == "No Contact"),])
+summary(fit_s1)
+```
+
+The slope, $\hat{\beta}_1$, is 0.992454, which indicates that every increase of 1 in `therm1` is associated with an increase of 0.992454 in `therm2`. The R-squared is 0.9952, which indicates that the model explains 99.52% of the variability of `therm2`. The residual standard error is 1.976.
+
+### Q4.2
+```{r}
+fit_s2 <- lm(therm2 ~ therm1, data = study2[study2$treatment == "No Contact",])
+summary(fit_s2)
+```
+
+The slope, $\hat{\beta}_1$, is 0.968662, which indicates that every increase of 1 in `therm1` is associated with an increase of 0.968662 in `therm2`. The R-squared is 0.9476, which indicates that the model explains 94.76% of the variability of `therm2`. The residual standard error is 6.547. 
+
+Comparing the two models, Study 2 has a lower and more realistic value for $\hat{\beta}_1$ of 0.968662<1 compared to 0.992454≈1 for Study 1. Similarly, the Study 2 R-squared of 0.9476 is lower and more realistic compared to the Study 1 R-squared of 0.9476. Thus, Study 1 resembles fabricated data that duplicates the baseline between waves, resulting in an abnormally high slope coefficient and explanation of variability (R-squared), while Study 2 resembles real data that displays some regression to the mean and slightly lower explanation of variability. 
+
+## 4.2 Comparing Groups with Regression
+### Q4.3
+```{r}
+study2_treatmentcontrol <- study2[study2$treatment == "Same-Sex Marriage Script by Gay Canvasser" | study2$treatment == "No Contact",]
+
+treated <- ifelse(study2_treatmentcontrol$treatment == "Same-Sex Marriage Script by Gay Canvasser", 1, 0)
+
+study2_treatmentcontrol <- mutate(study2_treatmentcontrol, treated = treated)
+
+fit_treated <- lm(therm2 ~ treated, data = study2_treatmentcontrol)
+summary(fit_treated)
+```
+
+The slope, $\hat{\beta}_1$, is 3.5679, which indicates that the mean `therm2` of the treatment group is 3.5679 higher than the mean `therm2` of the control group. This value matches the calculated difference in means of 3.567885 from Q3.4. The standard error, t-statistic, and p-value for $\hat{\beta}_1$ are 1.2423, 2.872, and 0.00412, respectively, so the difference between the two groups, is statistically significant at the $\alpha=0.05$ level since $p<0.05$. $\hat{\beta}_0$ estimates the mean `therm2` of the control group, or 57.6352, which also matches the calculated control group mean of 57.63523 from Q3.4.
+
+## 4.3 Controlling for Baseline Attitudes
+### Q4.4
+```{r}
+fit_treatedtherm1 <- lm(therm2 ~ treated + therm1, data = study2_treatmentcontrol)
+summary(fit_treatedtherm1)
+```
+
+The coefficient on `treated` is 2.458857, with a standard error of 0.005973, a t-statistic of 161.69, and a p-value of virtually 0. 
+
+(a) The estimate of $\hat{\beta}_1$ decreased (but not drastically) from 3.5679 to 2.458857.
+(b) The standard error decreased significantly from 1.2423 to 0.00597, and the p-value also decreased significantly from (the already statistically significant) 0.00412 to 0. 
+(c) Controlling for baseline attitudes improves precision by accounting for an additional explanatory variable for `therm2` so that the direct effect of `treated` on `therm2` can be isolated. We found in Q4.2 that there is a strong association between the value of `therm1` and the value of `therm2`, so controlling for `therm1` allows us to "hone in" on the effects of `treated` on `therm2`.
+
+### Q4.5
+The R-squared value increases from 0.003857 to 0.925. Adding `therm1` creates this dramatic increase in R-squared because it explains a large portion of the variability in `therm2`, which indicates that the vast majority of the variation in follow-up attitudes is better explained by where people started compared to the treatment itself. 
+
+```{r}
+personA <- data.frame(treated = 1, therm1 = 50)
+personB <- data.frame(treated = 0, therm1 = 50)
+predict(fit_treatedtherm1, personA)
+predict(fit_treatedtherm1, personB)
+predict(fit_treatedtherm1, personA) - predict(fit_treatedtherm1, personB)
+```
+The predicted difference in Wave 2 attitudes is 2.458857, consistent with the slope coefficient of the model. 

@@ -3,10 +3,6 @@
         {
             "columnIndex": 2,
             "ascending": true
-        },
-        {
-            "columnIndex": 1,
-            "ascending": false
         }
     ],
     "path": "~/Desktop/Education/GOV 51/gov51-ps2"
